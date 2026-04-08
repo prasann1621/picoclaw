@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+var globalAgentConfig *AgentConfig
+var globalLearningEngine *LearningEngine
+var globalTaskQueue *TaskQueue
+var globalTaskScheduler *TaskScheduler
+var globalThinker *Thinker
+
 func registerDefaultTools(agent *Agent) {
 	agent.RegisterTool("read_file", toolReadFile)
 	agent.RegisterTool("write_file", toolWriteFile)
@@ -460,12 +466,31 @@ func toolGetWeeklyReport(ctx context.Context, args map[string]interface{}) (stri
 	return globalLearningEngine.GetWeeklyReport(), nil
 }
 
-var globalAgentConfig *AgentConfig
-var globalLearningEngine *LearningEngine
+func toolTask(ctx context.Context, args map[string]interface{}) (string, error) {
+	if globalTaskQueue == nil {
+		return "Task queue not initialized", nil
+	}
 
-func init() {
-	globalAgentConfig = &AgentConfig{
-		Model:    "gemini-2.0-flash",
-		Provider: "google",
+	taskTools := NewTaskTools(globalTaskQueue)
+	return taskTools.HandleTaskCommand(args)
+}
+
+func toolThink(ctx context.Context, args map[string]interface{}) (string, error) {
+	if globalThinker == nil {
+		return "Thinker not initialized", nil
+	}
+
+	action, _ := args["action"].(string)
+
+	switch action {
+	case "thoughts":
+		return globalThinker.GetThoughts(), nil
+	case "memory":
+		return globalThinker.GetWorkingMemory(), nil
+	case "clear":
+		globalThinker = NewThinker()
+		return "Thinking cleared", nil
+	default:
+		return "Usage: think {action: 'thoughts'|'memory'|'clear'}", nil
 	}
 }

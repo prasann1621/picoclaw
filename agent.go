@@ -15,6 +15,7 @@ type Agent struct {
 	mu        sync.RWMutex
 	ctx       context.Context
 	llmClient *LLMClient
+	thinker   *Thinker
 }
 
 type AgentConfig struct {
@@ -64,6 +65,7 @@ func NewAgent(cfg *AgentConfig) *Agent {
 		messages:  make([]Message, 0),
 		ctx:       context.Background(),
 		llmClient: NewLLMClient(cfg.Provider, cfg.Model, cfg.APIKey),
+		thinker:   NewThinker(),
 	}
 }
 
@@ -104,7 +106,7 @@ func (a *Agent) Run(userInput string) (string, error) {
 
 	systemMsg := a.config.Instructions
 	if systemMsg == "" {
-		systemMsg = "You are Picoclaw, a helpful AI assistant."
+		systemMsg = a.thinker.getSystemPrompt()
 	}
 
 	msgs := append([]Message{{Role: "system", Content: systemMsg}}, a.messages...)
@@ -124,6 +126,9 @@ func (a *Agent) Run(userInput string) (string, error) {
 		Role:    "assistant",
 		Content: response,
 	})
+
+	a.thinker.rememberWorking(fmt.Sprintf("User: %s", truncate(userInput, 100)))
+	a.thinker.rememberWorking(fmt.Sprintf("Response: %s", truncate(response, 100)))
 
 	return response, nil
 }

@@ -23,6 +23,8 @@ type Picoclaw struct {
 	mu        sync.RWMutex
 	learning  *LearningEngine
 	scheduler *Scheduler
+	taskQueue *TaskQueue
+	taskSched *TaskScheduler
 }
 
 type Config struct {
@@ -117,6 +119,12 @@ func main() {
 		fmt.Println("✓ Learning Engine: Active")
 	}
 
+	pico.taskQueue = NewTaskQueue()
+	pico.taskQueue.loadTasks()
+	pico.taskSched = NewTaskScheduler(pico.taskQueue)
+	go pico.taskSched.Start(ctx)
+	fmt.Println("✓ Task Queue: Active")
+
 	fmt.Println("✓ Picoclaw ready! Press Ctrl+C to stop")
 
 	<-ctx.Done()
@@ -199,6 +207,10 @@ func registerAllTools(pico *Picoclaw) {
 	pico.agent.RegisterTool("build_tool", toolBuildTool)
 	pico.agent.RegisterTool("get_daily_report", toolGetDailyReport)
 	pico.agent.RegisterTool("get_weekly_report", toolGetWeeklyReport)
+	pico.agent.RegisterTool("task", toolTask)
+	pico.agent.RegisterTool("think", toolThink)
+
+	globalThinker = pico.agent.thinker
 
 	pico.tools.Register("read_file", nil)
 	pico.tools.Register("write_file", nil)

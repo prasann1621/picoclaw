@@ -138,7 +138,21 @@ func (t *TelegramBot) processMessage(msg *TgMessage) {
 		return
 	}
 
-	t.sendMessage(chatID, "🤔 Processing...")
+	t.sendMessage(chatID, "🧠 Thinking...")
+
+	input := text
+	thinker := t.pico.agent.thinker
+
+	thoughts := thinker.analyzeInput(input)
+	thinking := "📝 Analysis:\n"
+	for i, thought := range thoughts {
+		if i >= 5 {
+			break
+		}
+		thinking += fmt.Sprintf("• %s\n", thought)
+	}
+	t.sendMessage(chatID, thinking)
+	time.Sleep(500 * time.Millisecond)
 
 	response, err := t.pico.agent.Run(text)
 	if err != nil {
