@@ -129,19 +129,24 @@ func (a *Agent) Run(userInput string) (string, error) {
 }
 
 func (a *Agent) runWithFallback(msgs []Message, tools []ToolDefinition) (string, error) {
-	fallbackKeys := []struct {
+	fallbacks := []struct {
 		provider string
 		model    string
 		apiKey   string
 	}{
 		{"nvidia", "minimaxai/minimax-m2.5", "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"},
-		{"google", "gemini-2.0-flash", "AIzaSyAz5EKsooNW0USah9eQPhdlNyNqTb8hW0Y"},
-		{"google", "gemini-1.5-flash", "AIzaSyCwtbDpcMgjCKUov-WwYJS276Yney1Xsno"},
+		{"nvidia", "nvidia/llama-3.1-nemotron-nano-8b-v1", "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"},
+		{"nvidia", "meta/llama-3.1-8b-instruct", "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"},
+		{"nvidia", "mistralai/mistral-small-24b-instruct", "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"},
+		{"nvidia", "deepseek-ai/deepseek-r1-distill-qwen-7b", "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"},
+		{"nvidia", "qwen/qwen2.5-7b-instruct", "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"},
+		{"nvidia", "google/gemma-3-4b-it", "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"},
+		{"nvidia", "mistralai/mistral-7b-instruct-v0.3", "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"},
+		{"google", "gemini-1.5-flash", "AIzaSyAz5EKsooNW0USah9eQPhdlNyNqTb8hW0Y"},
 		{"openrouter", "deepseek/deepseek-r1:free", "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"},
-		{"nvidia", "nvidia/nemotron-3-nano-30b-a3b:free", "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"},
 	}
 
-	for _, fallback := range fallbackKeys {
+	for _, fallback := range fallbacks {
 		fmt.Printf("🔄 Trying fallback: %s/%s\n", fallback.provider, fallback.model)
 		fallbackClient := NewLLMClient(fallback.provider, fallback.model, fallback.apiKey)
 		resp, err := fallbackClient.Complete(a.ctx, msgs, tools)
