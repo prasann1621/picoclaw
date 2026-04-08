@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -117,15 +116,7 @@ func (a *Agent) Run(userInput string) (string, error) {
 
 	response, err := a.llmClient.Complete(a.ctx, msgs, tools)
 	if err != nil {
-		errStr := strings.ToLower(err.Error())
-		fmt.Printf("⚠️ LLM Error: %v\n", err)
-
-		if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") ||
-			strings.Contains(errStr, "cooldown") || strings.Contains(errStr, "quota") ||
-			strings.Contains(errStr, "exhausted") || strings.Contains(errStr, "no available") {
-			return a.runWithAllModels(msgs, tools)
-		}
-		return "", fmt.Errorf("LLM error: %w", err)
+		return "", fmt.Errorf("LLM call failed after retries: %w", err)
 	}
 
 	a.messages = append(a.messages, Message{
@@ -137,76 +128,6 @@ func (a *Agent) Run(userInput string) (string, error) {
 	a.thinker.rememberWorking(fmt.Sprintf("Response: %s", truncate(response, 100)))
 
 	return response, nil
-}
-
-func (a *Agent) runWithAllModels(msgs []Message, tools []ToolDefinition) (string, error) {
-	fmt.Println("🔄 Trying all available models...")
-
-	allModels := []struct {
-		provider string
-		model    string
-		apiKey   string
-	}{
-		{"google", "gemini-2.0-flash", "AIzaSyAz5EKsooNW0USah9eQPhdlNyNqTb8hW0Y"},
-		{"google", "gemini-1.5-flash", "AIzaSyAz5EKsooNW0USah9eQPhdlNyNqTb8hW0Y"},
-		{"google", "gemini-2.0-flash", "AIzaSyCwtbDpcMgjCKUov-WwYJS276Yney1Xsno"},
-		{"nvidia", "minimaxai/minimax-m2.5", "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"},
-		{"nvidia", "mistralai/mistral-small-24b-instruct", "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"},
-		{"nvidia", "qwen/qwen2.5-7b-instruct", "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"},
-		{"nvidia", "google/gemma-3-4b-it", "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"},
-		{"nvidia", "meta/llama-3.1-8b-instruct", "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"},
-		{"nvidia", "deepseek-ai/deepseek-r1-distill-qwen-7b", "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"},
-		{"nvidia", "mistralai/mistral-7b-instruct-v0.3", "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"},
-		{"openrouter", "deepseek/deepseek-r1:free", "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"},
-		{"openrouter", "qwen/qwen3-4b:free", "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"},
-		{"openrouter", "google/gemma-3-4b-it:free", "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"},
-	}
-
-	for i, m := range allModels {
-		key := fmt.Sprintf("%s:%s", m.provider, m.model)
-
-		if until, ok := cooldowns[key]; ok && time.Now().Before(until) {
-			remaining := until.Sub(time.Now())
-			fmt.Printf("⏳ Model %d (%s) on cooldown: %v\n", i+1, m.model, remaining.Round(time.Second))
-			continue
-		}
-
-		if retryCount[key] >= 5 {
-			fmt.Printf("⏭️ Model %d (%s) failed too many times, skipping\n", i+1, m.model)
-			continue
-		}
-
-		fmt.Printf("🎯 Trying model %d: %s/%s\n", i+1, m.provider, m.model)
-
-		client := NewLLMClient(m.provider, m.model, m.apiKey)
-		resp, err := client.Complete(a.ctx, msgs, tools)
-
-		if err == nil {
-			fmt.Printf("✅ Success with: %s/%s\n", m.provider, m.model)
-			retryCount[key] = 0
-
-			a.messages = append(a.messages, Message{
-				Role:    "assistant",
-				Content: resp,
-			})
-			return resp, nil
-		}
-
-		errStr := strings.ToLower(err.Error())
-		if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") ||
-			strings.Contains(errStr, "quota") {
-			cooldowns[key] = time.Now().Add(20 * time.Second)
-			retryCount[key]++
-			fmt.Printf("⚠️ Rate limited: %s/%s\n", m.provider, m.model)
-		} else {
-			fmt.Printf("❌ Error with %s/%s: %v\n", m.provider, m.model, err)
-			return "", err
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	return "", fmt.Errorf("all models failed - please try again later")
 }
 
 func getToolDescription(tool Tool) string {
