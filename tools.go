@@ -18,6 +18,7 @@ var globalLearningEngine *LearningEngine
 var globalTaskQueue *TaskQueue
 var globalTaskScheduler *TaskScheduler
 var globalThinker *Thinker
+var globalMazgaonResearch *MazgaonResearch
 
 func registerDefaultTools(agent *Agent) {
 	agent.RegisterTool("read_file", toolReadFile)
@@ -492,5 +493,33 @@ func toolThink(ctx context.Context, args map[string]interface{}) (string, error)
 		return "Thinking cleared", nil
 	default:
 		return "Usage: think {action: 'thoughts'|'memory'|'clear'}", nil
+	}
+}
+
+func toolMazgaonResearch(ctx context.Context, args map[string]interface{}) (string, error) {
+	if globalMazgaonResearch == nil {
+		return "Mazgaon research not initialized", nil
+	}
+
+	action, _ := args["action"].(string)
+
+	switch action {
+	case "run":
+		results := globalMazgaonResearch.RunAllResearch()
+		return "Research Complete!\n\n" + results, nil
+	case "report":
+		return globalMazgaonResearch.GetFullReport(), nil
+	case "fixes":
+		fixes := globalMazgaonResearch.GetFixesList()
+		if len(fixes) == 0 {
+			return "No fixes found. Run research first.", nil
+		}
+		result := "📋 All Fixes:\n"
+		for i, fix := range fixes {
+			result += fmt.Sprintf("%d. %s\n", i+1, fix)
+		}
+		return result, nil
+	default:
+		return "Usage: mazgaon {action: 'run'|'report'|'fixes'}", nil
 	}
 }

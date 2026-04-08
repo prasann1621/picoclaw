@@ -182,20 +182,22 @@ func (t *TelegramBot) handleCommand(msg *TgMessage) {
 
 	helpText := `📖 Picoclaw v2.0 Commands:
 
-/start, /help - Show this help
-/status - Agent status
-/tools - List tools
-/skill <name> - Learn a new skill
-/skills - List learned skills
-/build <name> - Build a tool
-/report - Get daily report
-/weekly - Get weekly report
+/start, /help   - Show this help
+/status         - Agent status
+/tools          - List tools
+/skill <name>   - Learn a new skill
+/skills         - List learned skills
+/build <name>   - Build a tool
+/report         - Get daily report
+/weekly         - Get weekly report
+/todo add|list|run|plan - Task management
+/mazgaon        - Run website research for aaplemazgaon.quintoxsolutions.com
 /search <query> - Web search
-/time - Current time
-/config - Show config
-/models - List available models
+/time           - Current time
+/config         - Show config
+/models         - List available models
 /set_model <name> - Switch model
-/restart - Restart agent`
+/restart        - Restart agent`
 
 	switch command {
 	case "/start", "/help":
@@ -386,6 +388,35 @@ Use /set_model <provider/model> to switch`)
 		default:
 			t.sendMessage(chatID, "Unknown /todo command. Use: add, list, run, plan")
 		}
+	case "/mazgaon":
+		t.sendMessage(chatID, "🔍 Starting deep research for aaplemazgaon.quintoxsolutions.com...\n\nThis will analyze SEO, content, performance, UX, technical debt, and create a multi-page strategy.")
+
+		go func() {
+			t.sendMessage(chatID, "📊 Step 1/8: SEO Analysis...")
+			results := t.pico.mazgaonRes.RunAllResearch()
+
+			t.sendMessage(chatID, fmt.Sprintf("✅ Research Complete!\n\n%s", truncate(results, 4000)))
+
+			fixes := t.pico.mazgaonRes.GetFixesList()
+			if len(fixes) > 0 {
+				fixMsg := "📋 TOP FIXES TO IMPLEMENT:\n\n"
+				for i, fix := range fixes {
+					if i >= 10 {
+						break
+					}
+					fixMsg += fmt.Sprintf("%d. %s\n", i+1, fix)
+				}
+				t.sendMessage(chatID, fixMsg)
+			}
+
+			fullReport := t.pico.mazgaonRes.GetFullReport()
+			if len(fullReport) > 4000 {
+				t.sendMessage(chatID, "📄 Full report (continued):\n"+fullReport[:4000])
+				t.sendMessage(chatID, fullReport[4000:])
+			} else {
+				t.sendMessage(chatID, fullReport)
+			}
+		}()
 	default:
 		t.sendMessage(chatID, "Unknown. /help for commands.")
 	}

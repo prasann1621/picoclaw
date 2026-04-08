@@ -13,19 +13,20 @@ import (
 const version = "2.0.0"
 
 type Picoclaw struct {
-	agent     *Agent
-	config    *Config
-	telegram  *TelegramBot
-	tools     *ToolRegistry
-	ctx       context.Context
-	cancel    context.CancelFunc
-	running   bool
-	mu        sync.RWMutex
-	learning  *LearningEngine
-	scheduler *Scheduler
-	taskQueue *TaskQueue
-	taskSched *TaskScheduler
-	gsdEngine *GSDEngine
+	agent      *Agent
+	config     *Config
+	telegram   *TelegramBot
+	tools      *ToolRegistry
+	ctx        context.Context
+	cancel     context.CancelFunc
+	running    bool
+	mu         sync.RWMutex
+	learning   *LearningEngine
+	scheduler  *Scheduler
+	taskQueue  *TaskQueue
+	taskSched  *TaskScheduler
+	gsdEngine  *GSDEngine
+	mazgaonRes *MazgaonResearch
 }
 
 type Config struct {
@@ -129,6 +130,10 @@ func main() {
 	pico.gsdEngine = NewGSDEngine(pico.taskQueue)
 	fmt.Println("✓ GSD Engine: Active")
 
+	pico.mazgaonRes = NewMazgaonResearch(pico.gsdEngine)
+	globalMazgaonResearch = pico.mazgaonRes
+	fmt.Println("✓ Mazgaon Research: Ready")
+
 	fmt.Println("✓ Picoclaw ready! Press Ctrl+C to stop")
 
 	<-ctx.Done()
@@ -213,6 +218,7 @@ func registerAllTools(pico *Picoclaw) {
 	pico.agent.RegisterTool("get_weekly_report", toolGetWeeklyReport)
 	pico.agent.RegisterTool("task", toolTask)
 	pico.agent.RegisterTool("think", toolThink)
+	pico.agent.RegisterTool("mazgaon", toolMazgaonResearch)
 
 	globalThinker = pico.agent.thinker
 
