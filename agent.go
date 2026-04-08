@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -112,6 +113,10 @@ func (a *Agent) Run(userInput string) (string, error) {
 
 	response, err := a.llmClient.Complete(a.ctx, msgs, tools)
 	if err != nil {
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") {
+			return a.runWithFallback(msgs, tools)
+		}
 		return "", fmt.Errorf("LLM error: %w", err)
 	}
 
@@ -121,6 +126,36 @@ func (a *Agent) Run(userInput string) (string, error) {
 	})
 
 	return response, nil
+}
+
+func (a *Agent) runWithFallback(msgs []Message, tools []ToolDefinition) (string, error) {
+	fallbackKeys := []struct {
+		provider string
+		model    string
+		apiKey   string
+	}{
+		{"nvidia", "minimaxai/minimax-m2.5", "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"},
+		{"google", "gemini-2.0-flash", "AIzaSyAz5EKsooNW0USah9eQPhdlNyNqTb8hW0Y"},
+		{"google", "gemini-1.5-flash", "AIzaSyCwtbDpcMgjCKUov-WwYJS276Yney1Xsno"},
+		{"openrouter", "deepseek/deepseek-r1:free", "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"},
+		{"nvidia", "nvidia/nemotron-3-nano-30b-a3b:free", "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"},
+	}
+
+	for _, fallback := range fallbackKeys {
+		fmt.Printf("🔄 Trying fallback: %s/%s\n", fallback.provider, fallback.model)
+		fallbackClient := NewLLMClient(fallback.provider, fallback.model, fallback.apiKey)
+		resp, err := fallbackClient.Complete(a.ctx, msgs, tools)
+		if err == nil {
+			a.messages = append(a.messages, Message{
+				Role:    "assistant",
+				Content: resp,
+			})
+			return resp, nil
+		}
+		fmt.Printf("⚠️ Fallback %s failed: %v\n", fallback.model, err)
+	}
+
+	return "", fmt.Errorf("all providers failed")
 }
 
 func getToolDescription(tool Tool) string {
