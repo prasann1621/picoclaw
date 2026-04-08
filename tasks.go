@@ -91,6 +91,20 @@ func (q *TaskQueue) GetTask(id string) (*Task, bool) {
 	return task, ok
 }
 
+func (q *TaskQueue) SetTaskData(id string, key string, value interface{}) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if task, ok := q.tasks[id]; ok {
+		switch key {
+		case "auto_retry":
+			task.Retries = 0
+		case "plan":
+			task.Description = value.(string)
+		}
+		q.saveTasks()
+	}
+}
+
 func (q *TaskQueue) ListTasks() []*Task {
 	q.mu.RLock()
 	defer q.mu.RUnlock()

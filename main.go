@@ -25,6 +25,7 @@ type Picoclaw struct {
 	scheduler *Scheduler
 	taskQueue *TaskQueue
 	taskSched *TaskScheduler
+	gsdEngine *GSDEngine
 }
 
 type Config struct {
@@ -124,6 +125,9 @@ func main() {
 	pico.taskSched = NewTaskScheduler(pico.taskQueue)
 	go pico.taskSched.Start(ctx)
 	fmt.Println("✓ Task Queue: Active")
+
+	pico.gsdEngine = NewGSDEngine(pico.taskQueue)
+	fmt.Println("✓ GSD Engine: Active")
 
 	fmt.Println("✓ Picoclaw ready! Press Ctrl+C to stop")
 

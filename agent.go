@@ -16,6 +16,7 @@ type Agent struct {
 	ctx       context.Context
 	llmClient *LLMClient
 	thinker   *Thinker
+	modelSel  *ModelSelector
 }
 
 type AgentConfig struct {
@@ -66,6 +67,7 @@ func NewAgent(cfg *AgentConfig) *Agent {
 		ctx:       context.Background(),
 		llmClient: NewLLMClient(cfg.Provider, cfg.Model, cfg.APIKey),
 		thinker:   NewThinker(),
+		modelSel:  NewModelSelector(),
 	}
 }
 

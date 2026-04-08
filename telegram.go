@@ -314,9 +314,124 @@ Use /set_model <provider/model> to switch`)
 		t.pico.agent = NewAgent(t.pico.agent.config)
 		registerAllTools(t.pico)
 		t.sendMessage(chatID, "✅ Restarted!")
+	case "/todo", "/taskdo":
+		if len(args) == 0 {
+			t.sendMessage(chatID, `📋 Todo Commands:
+/todo add <task> - Add task to queue
+/todo list - List pending tasks
+/todo run - Run next task with auto model
+/todo plan <task> - Create GSD plan for task`)
+			return
+		}
+		action := args[0]
+		taskArgs := args[1:]
+
+		switch action {
+		case "add", "new":
+			if len(taskArgs) == 0 {
+				t.sendMessage(chatID, "Usage: /todo add <task description>")
+				return
+			}
+			taskDesc := strings.Join(taskArgs, " ")
+			if t.pico.taskQueue != nil {
+				task := t.pico.taskQueue.AddTask("todo", taskDesc, 3)
+				t.pico.taskQueue.SetTaskData(task.ID, "auto_retry", true)
+				t.sendMessage(chatID, fmt.Sprintf("✅ Task added to queue: %s (ID: %s)\nWill auto-run when rate limit clears", taskDesc, task.ID))
+			}
+		case "list", "ls":
+			if t.pico.taskQueue != nil {
+				tasks := t.pico.taskQueue.ListTasks()
+				if len(tasks) == 0 {
+					t.sendMessage(chatID, "No tasks in queue")
+				} else {
+					list := "📋 Pending Tasks:\n"
+					for i, task := range tasks {
+						if i >= 10 {
+							break
+						}
+						list += fmt.Sprintf("%d. %s (ID: %s)\n", i+1, task.Title, task.ID)
+					}
+					t.sendMessage(chatID, list)
+				}
+			}
+		case "run", "do", "exec":
+			if t.pico.taskQueue != nil {
+				t.sendMessage(chatID, "🚀 Running task with auto model selection...")
+				pending := t.pico.taskQueue.GetPendingTasks()
+				if len(pending) == 0 {
+					t.sendMessage(chatID, "No pending tasks")
+					return
+				}
+				task := pending[0]
+
+				go func() {
+					result := t.runTaskWithAutoRetry(task.ID)
+					t.sendMessage(chatID, fmt.Sprintf("✅ Task completed:\n%s", result))
+				}()
+			}
+		case "plan", "gsd":
+			if len(taskArgs) == 0 {
+				t.sendMessage(chatID, "Usage: /todo plan <task>")
+				return
+			}
+			taskDesc := strings.Join(taskArgs, " ")
+			t.sendMessage(chatID, "🧠 Creating GSD plan...")
+
+			plan := t.createGSDPlan(taskDesc)
+			if t.pico.taskQueue != nil {
+				task := t.pico.taskQueue.AddTask("gsd_plan", taskDesc, 5)
+				t.pico.taskQueue.SetTaskData(task.ID, "plan", plan)
+				t.sendMessage(chatID, fmt.Sprintf("📝 GSD Plan for: %s\n\n%s", taskDesc, plan))
+			}
+		default:
+			t.sendMessage(chatID, "Unknown /todo command. Use: add, list, run, plan")
+		}
 	default:
 		t.sendMessage(chatID, "Unknown. /help for commands.")
 	}
+}
+
+func (t *TelegramBot) runTaskWithAutoRetry(taskID string) string {
+	ctx := context.Background()
+	maxRetries := 5
+
+	for i := 0; i < maxRetries; i++ {
+		task, ok := t.pico.taskQueue.GetTask(taskID)
+		if !ok {
+			return "Task not found"
+		}
+
+		task.Status = "running"
+		t.pico.taskQueue.saveTasks()
+
+		plan := t.pico.gsdEngine.CreatePlan(task.Description)
+
+		result, err := t.pico.gsdEngine.ExecutePlan(plan.TaskID, ctx)
+		if err != nil {
+			errStr := strings.ToLower(err.Error())
+			if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") || strings.Contains(errStr, "quota") {
+				t.sendMessage(t.allowFrom[0], fmt.Sprintf("⏳ Rate limited, retrying in %d seconds...", (i+1)*10))
+				time.Sleep(time.Duration(i+1) * 10 * time.Second)
+				continue
+			}
+			task.Status = "failed"
+			task.Error = err.Error()
+			t.pico.taskQueue.saveTasks()
+			return fmt.Sprintf("Task failed: %v", err)
+		}
+
+		task.Status = "completed"
+		task.Result = result
+		t.pico.taskQueue.saveTasks()
+		return result
+	}
+
+	return "Task failed after max retries"
+}
+
+func (t *TelegramBot) createGSDPlan(taskDesc string) string {
+	plan := t.pico.gsdEngine.CreatePlan(taskDesc)
+	return t.pico.gsdEngine.formatResults(plan)
 }
 
 func (t *TelegramBot) sendMessage(chatID int64, text string) {
