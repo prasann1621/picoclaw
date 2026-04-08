@@ -156,8 +156,28 @@ func (t *TelegramBot) processMessage(msg *TgMessage) {
 
 	response, err := t.pico.agent.Run(text)
 	if err != nil {
-		t.sendMessage(chatID, fmt.Sprintf("❌ Error: %v", err))
-		return
+		errStr := strings.ToLower(err.Error())
+
+		if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") ||
+			strings.Contains(errStr, "quota") || strings.Contains(errStr, "cooldown") ||
+			strings.Contains(errStr, "exhausted") || strings.Contains(errStr, "no available") {
+			t.sendMessage(chatID, "⚠️ All models busy/rate-limited. Trying again with alternative models...")
+
+			t.sendMessage(chatID, "🔄 Attempting recovery...")
+
+			time.Sleep(2 * time.Second)
+
+			response, err = t.pico.agent.Run(text)
+			if err != nil {
+				t.sendMessage(chatID, fmt.Sprintf("❌ Sorry, all AI models are currently rate-limited.\n\nPlease wait a moment and try again.\n\nError: %v", err))
+			}
+		} else {
+			t.sendMessage(chatID, fmt.Sprintf("❌ Error: %v", err))
+		}
+
+		if err != nil {
+			return
+		}
 	}
 
 	if len(response) > 4000 {
