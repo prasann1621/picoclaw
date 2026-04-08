@@ -211,7 +211,12 @@ func (t *TelegramBot) handleCommand(msg *TgMessage) {
 /report         - Get daily report
 /weekly         - Get weekly report
 /todo add|list|run|plan - Task management
-/mazgaon        - Run website research for aaplemazgaon.quintoxsolutions.com
+/mazgaon        - Run website research
+/server, /health - Server health status
+/fix, /autofix  - Auto diagnose and fix issues
+/buckets, /queue - Bucket queue status
+/schedule       - Weekly tool builder schedule
+/browse <url>   - Browse with headless browser
 /search <query> - Web search
 /time           - Current time
 /config         - Show config
@@ -435,6 +440,61 @@ Use /set_model <provider/model> to switch`)
 				t.sendMessage(chatID, fullReport[4000:])
 			} else {
 				t.sendMessage(chatID, fullReport)
+			}
+		}()
+	case "/server", "/health":
+		if t.pico.monitor != nil {
+			t.sendMessage(chatID, t.pico.monitor.GetStatus())
+		} else {
+			t.sendMessage(chatID, "Server monitor not enabled")
+		}
+	case "/fix", "/autofix":
+		if t.pico.autoFix != nil {
+			t.sendMessage(chatID, "🔧 Running auto-diagnosis and fix...")
+			go func() {
+				result := t.pico.autoFix.DiagnoseAndFix(context.Background())
+				t.sendMessage(chatID, result)
+			}()
+		} else {
+			t.sendMessage(chatID, "Auto-fix not enabled")
+		}
+	case "/buckets", "/queue":
+		if t.pico.bucketQueue != nil {
+			t.sendMessage(chatID, t.pico.bucketQueue.GetBucketStats())
+		} else {
+			t.sendMessage(chatID, "Bucket queue not enabled")
+		}
+	case "/schedule":
+		if t.pico.weeklyBuilder != nil {
+			t.sendMessage(chatID, t.pico.weeklyBuilder.GetScheduleInfo())
+		} else {
+			t.sendMessage(chatID, "Weekly builder not enabled")
+		}
+	case "/forcebuild":
+		if t.pico.weeklyBuilder != nil {
+			go func() {
+				t.sendMessage(chatID, "🔨 Starting forced weekly build...")
+				t.pico.weeklyBuilder.ForceBuild(context.Background())
+			}()
+		} else {
+			t.sendMessage(chatID, "Weekly builder not enabled")
+		}
+	case "/browser":
+		t.sendMessage(chatID, "🌐 Lightpanda Browser\n\nUse /browse <url> to fetch a page with headless browser")
+	case "/browse":
+		if len(args) == 0 {
+			t.sendMessage(chatID, "Usage: /browse <url>")
+			return
+		}
+		url := args[0]
+		go func() {
+			t.sendMessage(chatID, fmt.Sprintf("🌐 Browsing %s with Lightpanda...", url))
+			result, _ := toolLightpandaFetch(context.Background(), map[string]interface{}{"url": url})
+			if len(result) > 4000 {
+				t.sendMessage(chatID, result[:4000])
+				t.sendMessage(chatID, result[4000:])
+			} else {
+				t.sendMessage(chatID, result)
 			}
 		}()
 	default:

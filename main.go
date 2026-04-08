@@ -13,20 +13,24 @@ import (
 const version = "2.0.0"
 
 type Picoclaw struct {
-	agent      *Agent
-	config     *Config
-	telegram   *TelegramBot
-	tools      *ToolRegistry
-	ctx        context.Context
-	cancel     context.CancelFunc
-	running    bool
-	mu         sync.RWMutex
-	learning   *LearningEngine
-	scheduler  *Scheduler
-	taskQueue  *TaskQueue
-	taskSched  *TaskScheduler
-	gsdEngine  *GSDEngine
-	mazgaonRes *MazgaonResearch
+	agent         *Agent
+	config        *Config
+	telegram      *TelegramBot
+	tools         *ToolRegistry
+	ctx           context.Context
+	cancel        context.CancelFunc
+	running       bool
+	mu            sync.RWMutex
+	learning      *LearningEngine
+	scheduler     *Scheduler
+	taskQueue     *TaskQueue
+	taskSched     *TaskScheduler
+	gsdEngine     *GSDEngine
+	mazgaonRes    *MazgaonResearch
+	monitor       *ServerMonitor
+	autoFix       *AutoFix
+	bucketQueue   *BucketQueue
+	weeklyBuilder *WeeklyToolBuilder
 }
 
 type Config struct {
@@ -133,6 +137,19 @@ func main() {
 	pico.mazgaonRes = NewMazgaonResearch(pico.gsdEngine)
 	globalMazgaonResearch = pico.mazgaonRes
 	fmt.Println("✓ Mazgaon Research: Ready")
+
+	pico.monitor = NewServerMonitor(pico)
+	go pico.monitor.Start(ctx)
+
+	pico.autoFix = NewAutoFix(pico)
+
+	pico.bucketQueue = NewBucketQueue(pico)
+	pico.bucketQueue.StartWorkers(ctx, 3)
+
+	if cfg.Learning.GitHubToken != "" {
+		pico.weeklyBuilder = NewWeeklyToolBuilder(pico, cfg.Learning.GitHubToken, cfg.Learning.GitHubRepo)
+		go pico.weeklyBuilder.Start(ctx)
+	}
 
 	fmt.Println("✓ Picoclaw ready! Press Ctrl+C to stop")
 
